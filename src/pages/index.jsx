@@ -3,6 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stats } from "@react-three/drei";
 import DeformableSphere from "@/Components/Sphere";
 import { Center } from "@react-three/drei";
+import Shirt from "@/Components/Shirt";
 
 export default function CanvasContainer() {
   return (
@@ -14,9 +15,9 @@ export default function CanvasContainer() {
         <pointLight position={[0, 350, 0]} intensity={1} />
         <Center>
           {/* <ClothSimulation /> */}
-          <DeformableSphere />
+          <Shirt />
         </Center>
-        <OrbitControls />
+        <OrbitControls enableZoom={true} enableRotate={false} />
         <Stats />
       </Canvas>
     </div>

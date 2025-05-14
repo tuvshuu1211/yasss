@@ -1,20 +1,12 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, useLoader, useThree } from '@react-three/fiber';
-import { OrbitControls, Stats } from '@react-three/drei';
-import { Geometry } from 'three-stdlib';
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
-const sphereConfig = {
-  radius: 100,
-  widthSegments: 50,
-  heightSegments: 50
-};
-
 const DRAG = 0.97;
-const PULL = 7.5;
+const PULL = 25;
 const TIMESTEP = 18 / 1000;
-const TIMESTEP_SQ = TIMESTEP * TIMESTEP;
+const TIMESTEP_SQ = TIMESTEP * TIMESTEP;      // whether mouse was clicked this frame
 
 function Particle(x, y, z, mass) {
   this.position = new THREE.Vector3(x, y, z);
@@ -63,6 +55,13 @@ export default function DeformableSphere() {
   const [draggedParticle, setDraggedParticle] = useState(null);
 
   const { nodes } = useLoader(GLTFLoader, "/model/shirt.glb"); 
+
+  const mouse3d = useMemo(() => new THREE.Vector3(), []);
+const tmpmouse = useMemo(() => new THREE.Vector3(), []);
+const newPlane = useMemo(() => new THREE.Plane(), []);
+const [psel, setPsel] = useState(null); // selected particle index
+  const clickRef = useRef(false);   
+  const { gl } = useThree(); 
 
   useEffect(() => {
     if (nodes && nodes.T_Shirt_male) {
@@ -122,82 +121,126 @@ export default function DeformableSphere() {
   const intersectionPoint = useMemo(() => new THREE.Vector3(), []);
 
   useEffect(() => {
+    const domElement = gl.domElement;
+    
     const onPointerDown = (event) => {
-      if (!meshRef.current || !particles.length) return;
+  clickRef.current = true; // mark click active this frame
+  if (!meshRef.current || !particles.length) return;
 
-      raycaster.setFromCamera(mouse, camera);
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(meshRef.current);
+  if (intersects.length > 0) {
+    const point = intersects[0].point;
 
-      const intersects = raycaster.intersectObject(meshRef.current);
-      if (intersects.length > 0) {
-        const point = intersects[0].point;
-
-        // Find closest particle
-        let closest = null;
-        let minDist = Infinity;
-        for (let p of particles) {
-          const dist = p.position.distanceTo(point);
-          if (dist < minDist) {
-            closest = p;
-            minDist = dist;
-          }
-        }
-
-        if (closest) setDraggedParticle(closest);
+    let closest = null;
+    let minDist = Infinity;
+    for (let i = 0; i < particles.length; i++) {
+      const dist = particles[i].position.distanceTo(point);
+      if (dist < minDist) {
+        closest = i;
+        minDist = dist;
       }
-    };
+    }
+
+    if (closest !== null) {
+      setPsel(closest);
+      setDraggedParticle(particles[closest]); // optional if you want to drag after select
+    }
+  }
+};
+    
 
     const onPointerUp = () => {
+      setPsel(null);
       setDraggedParticle(null);
+      clickRef.current = false;
     };
 
-    window.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointerup', onPointerUp);
+    domElement.addEventListener('pointerdown', onPointerDown);
+    domElement.addEventListener('pointerup', onPointerUp);
 
     return () => {
-      window.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointerup', onPointerUp);
+      domElement.removeEventListener('pointerdown', onPointerDown);
+      domElement.removeEventListener('pointerup', onPointerUp);
     };
   }, [mouse, camera, particles]);
 
   useFrame(() => {
-    if (!particles.length) return;
+  if (!particles.length || !meshRef.current) return;
 
-    if (draggedParticle) {
-      raycaster.setFromCamera(mouse, camera);
-      const planeNormal = new THREE.Vector3().subVectors(camera.position, meshRef.current.position).normalize();
-      plane.setFromNormalAndCoplanarPoint(planeNormal, meshRef.current.position);
-      raycaster.ray.intersectPlane(plane, intersectionPoint);
+  // --- Begin updateMouse ---
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(meshRef.current);
+  mouse3d.set(0, 0, 0);
 
-      draggedParticle.position.copy(intersectionPoint);
-    }
+  if (intersects.length > 0) {
+    mouse3d.copy(intersects[0].point);
+  }
+
+  // Handle particle selection on click
+  if (psel === null && clickRef.current && !mouse3d.equals(new THREE.Vector3(0, 0, 0))) {
+    let closestIdx = -1;
+    let dist = Infinity;
 
     for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
-      if (p !== draggedParticle) {
-        const force = new THREE.Vector3().copy(p.original).sub(p.position).multiplyScalar(PULL);
-        p.addForce(force);
-        p.integrate(TIMESTEP_SQ);
+      const tmpDist = mouse3d.distanceTo(particles[i].position);
+      if (tmpDist < dist) {
+        dist = tmpDist;
+        closestIdx = i;
       }
     }
 
-    for (let j = 0; j < 5; j++) {
-      const reverse = j % 2 === 1;
-      const iter = reverse ? [...constraints].reverse() : constraints;
-      for (let i = 0; i < iter.length; i++) {
-        const [p1, p2, d] = iter[i];
-        SatisfyConstraints(p1, p2, d);
+    if (closestIdx !== -1) {
+      setPsel(closestIdx);
+      setDraggedParticle(particles[closestIdx]);
+
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].distance = particles[closestIdx].original.distanceTo(particles[i].original);
       }
     }
+  }
 
-    const positionAttr = meshRef.current.geometry.attributes.position;
-    for (let i = 0; i < particles.length; i++) {
-      const p = particles[i].position;
-      positionAttr.setXYZ(i, p.x, p.y, p.z);
+  newPlane.setFromNormalAndCoplanarPoint(camera.position.clone().normalize(), new THREE.Vector3(0, 0, 0));
+  raycaster.ray.intersectPlane(newPlane, tmpmouse);
+  if (tmpmouse) {
+    mouse3d.copy(tmpmouse);
+  }
+
+  clickRef.current = false; // reset click flag
+  // --- End updateMouse ---
+
+  // Apply simulation logic
+  if (draggedParticle) {
+    draggedParticle.position.copy(mouse3d);
+  }
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (p !== draggedParticle) {
+      const force = new THREE.Vector3().copy(p.original).sub(p.position).multiplyScalar(PULL);
+      p.addForce(force);
+      p.integrate(TIMESTEP_SQ);
     }
+  }
 
-    positionAttr.needsUpdate = true;
-    meshRef.current.geometry.computeVertexNormals();
-  });
+  for (let j = 0; j < 5; j++) {
+    const reverse = j % 2 === 1;
+    const iter = reverse ? [...constraints].reverse() : constraints;
+    for (let i = 0; i < iter.length; i++) {
+      const [p1, p2, d] = iter[i];
+      SatisfyConstraints(p1, p2, d);
+    }
+  }
+
+  const positionAttr = meshRef.current.geometry.attributes.position;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i].position;
+    positionAttr.setXYZ(i, p.x, p.y, p.z);
+  }
+
+  positionAttr.needsUpdate = true;
+  meshRef.current.geometry.computeVertexNormals();
+});
 
   return (
     <mesh ref={meshRef} geometry={geometry}>
