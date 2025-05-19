@@ -1,6 +1,6 @@
 import gsap from "gsap";
 
-export const showClothAnim = (object, uRotation, uScale) =>{
+export const showClothAnim = (object, uniform) =>{
     const clothShowTL = gsap
         .timeline({ paused: true, defaults: { duration: 1 }, onComplete: ()=> clothShowTL.kill() })
         .fromTo(
@@ -24,7 +24,7 @@ export const showClothAnim = (object, uRotation, uScale) =>{
           0
         )
         .fromTo(
-          uRotation,
+          uniform.uRotation,
           {
             value: -5,
           },
@@ -35,7 +35,7 @@ export const showClothAnim = (object, uRotation, uScale) =>{
           0
         )
         .fromTo(
-          uScale,
+         uniform.uScale,
           {
             value: 1,
           },
@@ -49,7 +49,7 @@ export const showClothAnim = (object, uRotation, uScale) =>{
     return clothShowTL
 }
 
-export const hideClothAnim = (object, uRotation, uScale) =>{
+export const hideClothAnim = (object, uniform) =>{
     const clothHideTL = gsap
         .timeline({ paused: true, defaults: { duration: .3 }, onComplete: ()=> clothHideTL.kill() })
         .to(
@@ -72,7 +72,7 @@ export const hideClothAnim = (object, uRotation, uScale) =>{
           ">-=30%"
         )
         .to(
-            uRotation,
+            uniform.uRotation,
           {
               value: 5
           },
@@ -80,4 +80,60 @@ export const hideClothAnim = (object, uRotation, uScale) =>{
         )
     
     return clothHideTL
+}
+
+export const revealClothAnim = (object, rotationPhysics, uScale) =>{
+    const startTL = gsap
+        .timeline({
+            paused: true,
+            defaults: { duration: 3 },
+            onComplete: () => startTL.kill(),
+        })
+        .from(
+            object.position,
+            {
+                z: 2,
+                ease: "elastic.out(0.75,0.75)",
+            },
+            0
+        )
+        .from(
+            object.position,
+            {
+                y: -3,
+                ease: "elastic.out(1,0.9)",
+            },
+            0.1
+        )
+        .from(
+            object.rotation,
+            {
+                x: -(Math.PI / 180) * 30,
+                ease: "elastic.out(1,0.75)",
+            },
+            0.2
+        )
+        .fromTo(
+            uScale,
+            {
+                value: 5,
+            },
+            {
+                value: 0,
+                ease: "elastic.out(1,0.75)",
+            },
+            0
+        )
+        .fromTo(
+          rotationPhysics,
+          {
+            momentum: 0.1,
+          },
+          {
+            momentum: 0,
+            ease: "elastic.out(1,0.3)",
+          },
+          0
+        );
+    return startTL
 }

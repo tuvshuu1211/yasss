@@ -7,7 +7,11 @@ import * as THREE from "three";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
-import { showClothAnim, hideClothAnim } from "@/helper/clothShowHideAnim";
+import {
+  showClothAnim,
+  hideClothAnim,
+  revealClothAnim,
+} from "@/helper/clothShowHideAnim";
 
 const modelPaths = [
   {
@@ -30,8 +34,6 @@ export default function Shirt() {
   const objectRef = useRef(null);
   const rotationY = useRef(0);
   const startTL = useRef(null);
-  const clothHideTL = useRef(null);
-  const clothShowTL = useRef(null);
   const needsUpdate = useRef(false);
   const models = useMemo(() => modelPaths.map((path) => useGLTF(path.url)), []);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -63,59 +65,11 @@ export default function Shirt() {
 
   useGSAP(
     () => {
-      startTL.current = gsap
-        .timeline({
-          paused: true,
-          defaults: { duration: 3 },
-          onStart: () => (needsUpdate.current = true),
-          onComplete: () => startTL.current.kill(),
-        })
-        .from(
-          objectRef.current.position,
-          {
-            z: 2,
-            ease: "elastic.out(0.75,0.75)",
-          },
-          0
-        )
-        .from(
-          objectRef.current.position,
-          {
-            y: -2,
-            ease: "elastic.out(1,0.9)",
-          },
-          0.1
-        )
-        .from(
-          objectRef.current.rotation,
-          {
-            x: -(Math.PI / 180) * 30,
-            ease: "elastic.out(1,0.75)",
-          },
-          0.2
-        )
-        .fromTo(
-          uniformsRef.current.uScale,
-          {
-            value: 5,
-          },
-          {
-            value: 0,
-            ease: "elastic.out(1,0.75)",
-          },
-          0
-        )
-        .fromTo(
-          rotationPhysics.current,
-          {
-            momentum: 0.1,
-          },
-          {
-            momentum: 0,
-            ease: "elastic.out(1,0.3)",
-          },
-          0
-        );
+      startTL.current = revealClothAnim(
+        objectRef.current,
+        rotationPhysics.current,
+        uniformsRef.current.uScale
+      );
     },
     {
       scope: objectRef,
@@ -124,7 +78,7 @@ export default function Shirt() {
 
   useEffect(() => {
     if (startTL.current) {
-      startTL.current.play();
+      startTL.current.seek(0).play();
     }
   }, [startTL]);
 
@@ -185,9 +139,9 @@ export default function Shirt() {
 
     models[activeIndex].scene.traverse((child) => {
       if (child.material) {
-        console.log(child.material);
         const clonedMaterial = child.material.clone();
         injectTwistShader(clonedMaterial);
+        console.log(child);
         child.material = clonedMaterial;
         child.material.normalMap = normalMap;
         child.material.roughnessMap = roughnessMap;
@@ -256,11 +210,7 @@ export default function Shirt() {
   const handleChangeModel = (i) => {
     if (activeIndex === i) return;
 
-    hideClothAnim(
-      objectRef.current,
-      uniformsRef.current.uRotation,
-      uniformsRef.current.uScale
-    )
+    hideClothAnim(objectRef.current, uniformsRef.current)
       .seek(0)
       .play()
       .then(() => {
@@ -268,13 +218,7 @@ export default function Shirt() {
         uniformsRef.current.uRotation.value = -5;
         uniformsRef.current.uScale.value = 0.75;
         objectRef.current.scale.set(0, 0, 0);
-        showClothAnim(
-          objectRef.current,
-          uniformsRef.current.uRotation,
-          uniformsRef.current.uScale
-        )
-          .seek(0)
-          .play();
+        showClothAnim(objectRef.current, uniformsRef.current).seek(0).play();
       });
   };
 
@@ -369,7 +313,7 @@ export default function Shirt() {
       {/* <group scale={0.5} position={[0, -1.25, 0]} ref={objectRef}>
         <primitive object={scene} />
       </group> */}
-      <group position={[0, -1, 0]} ref={objectRef}>
+      <group position={[0, -2, 0]} ref={objectRef}>
         {models.map((model, index) => (
           <primitive
             key={index}
