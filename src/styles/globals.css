@@ -24,3 +24,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+body.cursor-grab {
+  cursor: url('/cursors/grab.svg') 8 8, grab;
+}
+
+body.cursor-grabbing {
+  cursor: url('/cursors/grabbing.svg') 8 8, grabbing;
+}
+
+a, button, .btn {
+  cursor: url('/cursors/pointer.svg') 8 8, pointer;
+}
