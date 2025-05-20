@@ -59,8 +59,8 @@ export default function Shirt() {
   const rotationPhysics = useRef({
     value: 0,
     momentum: 0,
-    elasticity: 80,
-    ease: 0.81,
+    elasticity: 60,
+    ease: 0.8,
   });
 
   useGSAP(

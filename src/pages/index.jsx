@@ -16,7 +16,7 @@ export default function CanvasContainer() {
         <Environment
           preset="warehouse"
           backgroundBlurriness={2}
-          environmentIntensity={0.3}
+          environmentIntensity={0.5}
           background
         />
         <Stats />
